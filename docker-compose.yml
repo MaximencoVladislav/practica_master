@@ -1,0 +1,63 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: admin
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: adminpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root --password=rootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "mysql://admin:adminpassword@db:3306/admin"
+      JWT_SECRET: "super-secret-key"
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    command: sh -c "
+      npx prisma generate &&
+      npx prisma db push --accept-data-loss &&
+      node prisma/seed.js &&
+      node src/index.js"
+
+  studio:
+    build: ./backend
+    container_name: prisma_studio
+    restart: always
+    environment:
+      # Внутри Docker используем имя хоста db
+      DATABASE_URL: "mysql://admin:adminpassword@db:3306/admin"
+    ports:
+      - "5555:5555"
+    depends_on:
+      - db
+    # Команда для запуска студии на всех интерфейсах (чтобы было видно снаружи)
+    command: npx prisma studio --hostname 0.0.0.0
+
+  frontend:
+    build: ./frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+volumes:
+  db_data:
