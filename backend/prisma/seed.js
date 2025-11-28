@@ -2,41 +2,31 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Начало заполнения начальными ролями...');
+  console.log('🌱 Заполнение БД...');
 
-  const defaultRoles = [
-    { name: 'ADMIN' },
-    { name: 'USER' },
-  ];
+  // 1. Роли
+  const adminRole = await prisma.role.upsert({ where: { name: 'ADMIN' }, update: {}, create: { name: 'ADMIN' } });
+  const userRole = await prisma.role.upsert({ where: { name: 'USER' }, update: {}, create: { name: 'USER' } });
 
-  // Создаем или обновляем роли, чтобы они существовали
-  for (const roleData of defaultRoles) {
-    await prisma.role.upsert({
-      where: { name: roleData.name },
-      update: {},
-      create: roleData,
+  // 2. Права
+  const perms = ['user:read', 'user:update_role', 'role:manage', 'sql:execute', 'sql:test'];
+
+  for (const pName of perms) {
+    const perm = await prisma.permission.upsert({ where: { name: pName }, update: {}, create: { name: pName } });
+    
+    // Админу даем ВСЕ права
+    await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: adminRole.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: adminRole.id, permissionId: perm.id }
     });
-    console.log(`Создана или обновлена роль: ${roleData.name}`);
   }
 
-  // Назначаем роль ADMIN первому найденному пользователю (если он есть)
+  // 3. Первый юзер - Админ
   const firstUser = await prisma.user.findFirst();
-  if (firstUser && firstUser.roleName !== 'ADMIN') {
-      await prisma.user.update({
-          where: { id: firstUser.id },
-          data: { roleName: 'ADMIN' }
-      });
-      console.log(`Первому пользователю (${firstUser.email}) назначена роль ADMIN.`);
+  if (firstUser) {
+      await prisma.user.update({ where: { id: firstUser.id }, data: { roleName: 'ADMIN' } });
+      console.log(`👑 ${firstUser.email} стал ADMIN`);
   }
-
-  console.log('Заполнение начальными ролями завершено.');
 }
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch(e => console.error(e)).finally(() => prisma.$disconnect());

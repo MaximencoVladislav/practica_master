@@ -1,3 +1,5 @@
+// frontend/src/App.jsx
+
 import React, { useEffect, useState } from 'react';
 import { apiLogin, apiRegister, apiGetMe, apiGetUsers } from './api';
 import AuthForm from './components/AuthForm';
@@ -10,6 +12,16 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
+  // 1. ЭФФЕКТ ДЛЯ ВРЕМЕННОГО УВЕДОМЛЕНИЯ
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage('');
+      }, 3000); // Сообщение исчезнет через 3 секунды
+      return () => clearTimeout(timer); // Очистка таймера
+    }
+  }, [message]);
+
   useEffect(() => {
     async function load() {
       if (!token) {
@@ -18,6 +30,7 @@ function App() {
       }
       const { ok, data } = await apiGetMe(token);
       if (ok) {
+        // Устанавливаем пользователя, который включает roleName и permissions
         setUser(data);
       } else {
         setToken(null);
@@ -32,6 +45,7 @@ function App() {
     setMessage('');
     const { ok, data } = await apiRegister({ email, password, name });
     if (ok) {
+      // data.user уже содержит roleName и permissions благодаря исправлению в auth.js
       setMessage(`Пользователь ${data.user.name} зарегистрирован, теперь войдите.`);
     } else {
       setMessage(data.message || 'Ошибка регистрации');
@@ -44,7 +58,8 @@ function App() {
     if (ok) {
       setToken(data.token);
       localStorage.setItem('token', data.token);
-      setUser(data.user);
+      // data.user уже содержит roleName и permissions благодаря исправлению в auth.js
+      setUser(data.user); 
       setMessage('Вход успешен!');
     } else {
       setMessage(data.message || 'Ошибка входа');
@@ -56,6 +71,7 @@ function App() {
     setUser(null);
     localStorage.removeItem('token');
     setUsersList([]);
+    setMessage('Вы вышли из системы.');
   };
 
   const loadUsers = async () => {
@@ -72,7 +88,19 @@ function App() {
 
   return (
     <div className="container">
-      <h1>Admin Panel</h1>
+      {/* 2. НАВИГАЦИОННАЯ ПАНЕЛЬ */}
+      <nav className="nav-bar">
+        <h1>Admin Panel</h1>
+        {user && (
+          <div className="user-info">
+            {/* Используем roleName */}
+            <span>{user.name || user.email} ({user.roleName})</span> 
+            <button className="danger" onClick={handleLogout}>Выйти</button>
+          </div>
+        )}
+      </nav>
+
+      {/* 3. ВРЕМЕННОЕ УВЕДОМЛЕНИЕ */}
       {message && <div className="message">{message}</div>}
 
       {!user && (
@@ -86,9 +114,9 @@ function App() {
         <Dashboard
           user={user}
           token={token}
-          onLogout={handleLogout}
-          usersList={usersList}
           onLoadUsers={loadUsers}
+          usersList={usersList}
+          // onLogout удален, так как кнопка теперь в <nav>
         />
       )}
     </div>

@@ -5,27 +5,48 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-// ----------------------------------------------------
-// НОВАЯ МОДЕЛЬ РОЛЕЙ для динамического управления
-model Role {
-  id      Int      @id @default(autoincrement())
-  name    String   @unique // Название роли: ADMIN, USER, EDITOR, MODERATOR
-  users   User[] // Связь с пользователями
+model Permission {
+  id    Int              @id @default(autoincrement())
+  name  String           @unique 
+  roles RolePermission[]
 }
-// ----------------------------------------------------
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  users       User[]
+  permissions RolePermission[]
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
 
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   password  String
   name      String?
-  // ----------------------------------------------------
-  // ИСПОЛЬЗОВАНИЕ СВЯЗИ С НОВОЙ МОДЕЛЬЮ (roleName вместо role)
-  roleName  String   @default("USER") // Поле для хранения имени роли
-  role      Role     @relation(fields: [roleName], references: [name], onUpdate: Cascade) // Связь
-  // ----------------------------------------------------
+  roleName  String   @default("USER")
+  role      Role     @relation(fields: [roleName], references: [name])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AdminEndpoint {
+  id          Int      @id @default(autoincrement())
+  path        String   @unique // Например: /api/custom/users-info
+  method      String   // Например: GET, POST
+  description String?
+  sqlQuery    String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -26,29 +26,16 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: "mysql://admin:adminpassword@db:3306/admin"
+      SHADOW_DATABASE_URL: "mysql://admin:adminpassword@db:3306/prisma_shadow"
       JWT_SECRET: "super-secret-key"
-      NODE_ENV: development
+      PORT: 3000
     ports:
       - "3000:3000"
-    command: sh -c "
-      npx prisma generate &&
-      npx prisma db push --accept-data-loss &&
-      node prisma/seed.js &&
-      node src/index.js"
-
-  studio:
-    build: ./backend
-    container_name: prisma_studio
-    restart: always
-    environment:
-      # Внутри Docker используем имя хоста db
-      DATABASE_URL: "mysql://admin:adminpassword@db:3306/admin"
-    ports:
       - "5555:5555"
-    depends_on:
-      - db
-    # Команда для запуска студии на всех интерфейсах (чтобы было видно снаружи)
-    command: npx prisma studio --hostname 0.0.0.0
+    volumes:
+      - ./backend:/app
+      - /app/node_modules # <--- ВАЖНО: Это лечит ошибку Exec format error
+    command: sh -c "sleep 5 && npx prisma db push --accept-data-loss && node prisma/seed.js && npm start"
 
   frontend:
     build: ./frontend
@@ -57,6 +44,11 @@ services:
       - backend
     ports:
       - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # <--- ВАЖНО: Это лечит ошибку vite not found
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:
